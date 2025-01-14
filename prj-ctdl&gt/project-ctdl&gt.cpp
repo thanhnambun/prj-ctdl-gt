@@ -93,7 +93,7 @@ void readOrdersFromFile(Queue* queue, const char* filename) {
             continue;
         }
 
-        if (!fgets(line, sizeof(line), file) || sscanf(line, "Ten khach hang: %[^]", newOrder->customerName) != 1) {
+        if (!fgets(line, sizeof(line), file) || sscanf(line, "Ten khach hang: %[^\n]", newOrder->customerName) != 1) {
             free(newOrder);
             continue;
         }
@@ -125,6 +125,50 @@ void readOrdersFromFile(Queue* queue, const char* filename) {
 
     fclose(file);
 }
+
+void updateProductQuantitiesFromFile(Product productList[], int size, const char* filename) {
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("Khong the mo file %s.\n", filename);
+        return;
+    }
+
+    char line[256];
+    char productName[50];
+    int quantitySold;
+
+    while (fgets(line, sizeof(line), file)) {
+        if (strcmp(line, "Danh sach san pham:\n") == 0) {
+            while (fgets(line, sizeof(line), file)) {
+                if (line[0] != '-') {
+                    break;
+                }
+
+                if (sscanf(line, "- %[^,], So luong: %d, Gia: %*f",
+                           productName, &quantitySold) == 2) {
+                    int found = 0;
+                    for (int i = 0; i < size; i++) {
+                        if (strcmp(productList[i].nameProduct, productName) == 0) {
+                            if (productList[i].quantity >= quantitySold) {
+                                productList[i].quantity -= quantitySold;
+                            } else {
+                                printf("Loi: So luong san pham '%s' khong du de cap nhat.\n", productName);
+                            }
+                            found = 1;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        printf("San pham '%s' khong ton tai trong danh sach.\n", productName);
+                    }
+                }
+            }
+        }
+    }
+
+    fclose(file);
+}
+
 
 void cancelOrderByID(Queue* queue) {
     if (isEmpty(queue)) {
@@ -183,35 +227,35 @@ void chooseProducts(Product productList[], int size, Product* selectedProducts, 
 
     do {
         displayProductList(productList, size);
-        printf("Ch?n s?n ph?m theo s? th? t? (1-%d): ", size);
+        printf("Chon san pham theo thu tu (1-%d): ", size);
         
         while (getchar() != '\n'); 
 
         if (scanf("%d", &choice) != 1) {
-            printf("Lua ch?n không h?p l?. Vui lòng nh?p m?t s?.\n");
+            printf("Lua chon khong hop le.\n");
             while (getchar() != '\n'); 
             continue;
         }
 
         if (choice < 1 || choice > size) {
-            printf("L?a ch?n không h?p l?. Vui lòng ch?n l?i.\n");
+            printf("Lua chon khong hop le\n");
             continue;
         }
 
         Product chosen = productList[choice - 1];
 
         if (chosen.quantity <= 0) {
-            printf("S?n ph?m %s dã h?t hàng. Vui lòng ch?n s?n ph?m khác.\n", chosen.nameProduct);
+            printf("San pham %s da het hang. Vui long chon san pham khac.\n", chosen.nameProduct);
             continue;
         }
 
-        printf("B?n dã ch?n: %s\n", chosen.nameProduct);
+        printf("Ban da chon: %s\n", chosen.nameProduct);
 
         do {
-            printf("Nh?p s? lu?ng (t?i da %d): ", chosen.quantity);
+            printf("Nhap so luong (toi da %d): ", chosen.quantity);
             if (scanf("%d", &quantity) != 1) {
-                printf("Vui lòng nh?p m?t s?.\n");
-                while (getchar() != '\n');
+                printf("Vui long nhap mot so.\n");
+                while (getchar() != '\n'); 
                 quantity = -1; 
                 continue;
             }
@@ -226,8 +270,8 @@ void chooseProducts(Product productList[], int size, Product* selectedProducts, 
         productList[choice - 1].quantity -= quantity; 
         (*productCount)++;
 
-        printf("Ban co muon chon thêm san pham? (y/n): ");
-        while (getchar() != '\n');
+        printf("Ban co muon chon them san pham? (y/n): ");
+        while (getchar() != '\n'); 
         scanf("%c", &continueChoice);
 
     } while (continueChoice == 'y' || continueChoice == 'Y');
@@ -253,7 +297,7 @@ void addOrder(Queue* queue, Product productList[], int size) {
     } while (isOrderIDExist(queue, newOrder->orderID));
 
     printf("Nhap ten khach hang: ");
-    scanf(" %[^]", newOrder->customerName);
+    scanf(" %[^\n]", newOrder->customerName);
 
     chooseProducts(productList, size, newOrder->products, &newOrder->productCount);
 
@@ -327,14 +371,14 @@ void processAndWriteOrders(Queue* queue, const char* filename) {
         return;
     }
 
-    while (!isEmpty(queue)) {
+
         Order* order = dequeue(queue);
         if (order != NULL) {
             printf("Xu ly va ghi don hang: %s\n", order->orderID);
             writeOrderToFile(order, filename);
             free(order);
+            saveAllOrdersToFile(queue, filename);
         }
-    }
     printf("Tat ca don hang da duoc xu thanh cong.\n");
 }
 
@@ -383,10 +427,11 @@ int main() {
     initQueue(&queue);
 
     int choice = 0;
-    const char* orders = "order.txt";
+    const char* orders = "orders.txt";
     const char* orderSuccessfully = "processed_order.txt";
 
     readOrdersFromFile(&queue, orders);
+    updateProductQuantitiesFromFile(productList, 5, orders);
 
     do {
         printf("\n=== MENU ===\n");
